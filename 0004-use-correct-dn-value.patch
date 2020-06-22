@@ -1,0 +1,32 @@
+commit d69150691983f7f1efaa078549cd80a14afb76cb
+Author: Petr Menšík <pemensik@redhat.com>
+Date:   Mon Jan 28 00:31:25 2019 +0100
+
+    Use correct dn value
+    
+    New GCC correctly reports error, NULL is always passed in case of
+    invalid objectclass.
+    
+    Signed-off-by: Petr Menšík <pemensik@redhat.com>
+
+diff --git a/src/ldap_helper.c b/src/ldap_helper.c
+index ac8ce6e..8b486ae 100644
+--- a/src/ldap_helper.c
++++ b/src/ldap_helper.c
+@@ -4102,7 +4102,6 @@ syncrepl_update(ldap_instance_t *inst, ldap_entry_t **entryp, int chgtype)
+ 	ldap_entry_t *entry = NULL;
+ 	dns_name_t *zone_name = NULL;
+ 	dns_zone_t *zone_ptr = NULL;
+-	char *dn = NULL;
+ 	isc_taskaction_t action = NULL;
+ 	isc_task_t *task = NULL;
+ 	isc_boolean_t synchronous;
+@@ -4156,7 +4155,7 @@ syncrepl_update(ldap_instance_t *inst, ldap_entry_t **entryp, int chgtype)
+ 	else if ((entry->class & LDAP_ENTRYCLASS_RR) != 0)
+ 		action = update_record;
+ 	else {
+-		log_error("unsupported objectClass: dn '%s'", dn);
++		log_error("unsupported objectClass: dn '%s'", entry->dn);
+ 		result = ISC_R_NOTIMPLEMENTED;
+ 		goto cleanup;
+ 	}

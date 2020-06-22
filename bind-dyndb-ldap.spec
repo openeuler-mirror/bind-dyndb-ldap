@@ -2,7 +2,7 @@
 
 Name:           bind-dyndb-ldap
 Version:        11.1
-Release:        13
+Release:        14
 Summary:        LDAP back-end plug-in for BIND
 License:        GPLv2+
 URL:            https://releases.pagure.org/bind-dyndb-ldap
@@ -12,6 +12,7 @@ Source1:        https://releases.pagure.org/%{name}/%{name}-%{version}.tar.bz2.a
 Patch0001:      0001-Coverity-fix-REVERSE_INULL-for-pevent-inst.patch
 Patch0002:      0002-Add-empty-callback-for-getsize.patch
 Patch0003:      0003-Support-for-BIND-9.11.3.patch
+Patch0004:      0004-use-correct-dn-value.patch
 BuildRequires:  bind-devel >= %{bind_version}, bind-lite-devel >= %{bind_version}, bind-pkcs11-devel >= %{bind_version}
 BuildRequires:  krb5-devel
 BuildRequires:  openldap-devel
@@ -74,5 +75,11 @@ sed -i.bak -e "$SEDSCRIPT" /etc/named.conf
 
 
 %changelog
+* Mon Jun 22 2020 gaihuiying <gaihuiying1@huawei.com> - 11.1-14
+- Type:bugfix
+- ID:NA
+- SUG:NA
+- DESC:fix build error with gcc9 
+
 * Wed Sep 11 2019 AlexChao <zhaolei746@huawei.com> - 11.1-13
 - Package init
