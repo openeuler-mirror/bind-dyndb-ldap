@@ -1,19 +1,14 @@
 %define bind_version 32:9.11.3-5
 
 Name:           bind-dyndb-ldap
-Version:        11.1
-Release:        14
+Version:        11.3
+Release:        1
 Summary:        LDAP back-end plug-in for BIND
 License:        GPLv2+
 URL:            https://releases.pagure.org/bind-dyndb-ldap
 Source0:        https://releases.pagure.org/%{name}/%{name}-%{version}.tar.bz2
 Source1:        https://releases.pagure.org/%{name}/%{name}-%{version}.tar.bz2.asc
-# These patches come from fedoraproject
-Patch0001:      0001-Coverity-fix-REVERSE_INULL-for-pevent-inst.patch
-Patch0002:      0002-Add-empty-callback-for-getsize.patch
-Patch0003:      0003-Support-for-BIND-9.11.3.patch
-Patch0004:      0004-use-correct-dn-value.patch
-BuildRequires:  bind-devel >= %{bind_version}, bind-lite-devel >= %{bind_version}, bind-pkcs11-devel >= %{bind_version}
+BuildRequires:  bind-devel >= %{bind_version}, bind-pkcs11-devel >= %{bind_version}
 BuildRequires:  krb5-devel
 BuildRequires:  openldap-devel
 BuildRequires:  libuuid-devel
@@ -75,6 +70,12 @@ sed -i.bak -e "$SEDSCRIPT" /etc/named.conf
 
 
 %changelog
+* Mon Jul 27 2020 gaihuiying <gaihuiying1@huawei.com> - 11.3-1
+- Type:requirement
+- ID:NA
+- SUG:NA
+- DESC:update to 11.3
+
 * Mon Jun 22 2020 gaihuiying <gaihuiying1@huawei.com> - 11.1-14
 - Type:bugfix
 - ID:NA
