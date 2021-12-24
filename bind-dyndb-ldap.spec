@@ -1,20 +1,34 @@
-%define bind_version 32:9.11.3-5
+%define bind_version 32:9.16.16
+%global openssl_pkcs11_version 0.4.10-6
+%global softhsm_version 2.5.0-4
+%global with_bind_pkcs11 0
 
 Name:           bind-dyndb-ldap
-Version:        11.3
+Version:        11.9
 Release:        1
 Summary:        LDAP back-end plug-in for BIND
 License:        GPLv2+
 URL:            https://releases.pagure.org/bind-dyndb-ldap
 Source0:        https://releases.pagure.org/%{name}/%{name}-%{version}.tar.bz2
 Source1:        https://releases.pagure.org/%{name}/%{name}-%{version}.tar.bz2.asc
-BuildRequires:  bind-devel >= %{bind_version}, bind-pkcs11-devel >= %{bind_version}
+
+Patch1:         backport-bind-dyndb-ldap-11.9-bind-9.16.17.patch
+
+BuildRequires:  bind-devel >= %{bind_version}
 BuildRequires:  krb5-devel
 BuildRequires:  openldap-devel
 BuildRequires:  libuuid-devel
 BuildRequires:  automake, autoconf, libtool
 BuildRequires:  openssl-devel
+
+%if %{with bind_pkcs11}
+BuildRequires:  bind-pkcs11-devel >= %{bind_version}
+Requires(pre):  bind-pkcs11 >= %{bind_version}
 Requires:       bind-pkcs11 >= %{bind_version}, bind-pkcs11-utils >= %{bind_version}
+%else
+Requires(pre):  bind >= %{bind_version}
+Requires:       softhsm >= %{softhsm_version}, openssl-pkcs11 >= %{openssl_pkcs11_version}, bind >= %{bind_version}
+%endif
 
 %description
 This package provides an LDAP back-end, the dynamic LDAP back-end is
@@ -25,6 +39,7 @@ a plug-in for BIND that provides an LDAP database back-end capabilities.
 
 %build
 autoreconf -fiv
+export BIND9_CFLAGS='-I /usr/include/bind9 -DHAVE_TLS -DHAVE_THREAD_LOCAL'
 %configure
 %make_build
 
@@ -34,6 +49,7 @@ rm -rf %{buildroot}
 install -d -m 770 %{buildroot}/%{_localstatedir}/named/dyndb-ldap
 
 %post
+[ -f /etc/named.conf ] || exit 0
 # Transform named.conf if it still has old-style API.
 PLATFORM=$(uname -m)
 
@@ -70,6 +86,12 @@ sed -i.bak -e "$SEDSCRIPT" /etc/named.conf
 
 
 %changelog
+* Fri Dec 24 2021 yanglu <yanglu72@huawei.com> - 11.9-1
+- Type:requirement
+- ID:NA
+- SUG:NA
+- DESC:update to 11.9
+
 * Mon Jul 27 2020 gaihuiying <gaihuiying1@huawei.com> - 11.3-1
 - Type:requirement
 - ID:NA
