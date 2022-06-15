@@ -5,7 +5,7 @@
 
 Name:           bind-dyndb-ldap
 Version:        11.9
-Release:        1
+Release:        2
 Summary:        LDAP back-end plug-in for BIND
 License:        GPLv2+
 URL:            https://releases.pagure.org/bind-dyndb-ldap
@@ -41,7 +41,14 @@ a plug-in for BIND that provides an LDAP database back-end capabilities.
 autoreconf -fiv
 export BIND9_CFLAGS='-I /usr/include/bind9 -DHAVE_TLS -DHAVE_THREAD_LOCAL'
 %configure
+%if %{?openEuler:1}0
 %make_build
+%else
+# unset SOURCE_DATE_EPOCH eliminate bep differences
+unset SOURCE_DATE_EPOCH
+%make_build
+set SOURCE_DATE_EPOCH
+%endif
 
 %install
 rm -rf %{buildroot}
@@ -86,6 +93,12 @@ sed -i.bak -e "$SEDSCRIPT" /etc/named.conf
 
 
 %changelog
+* Fri Jun 10 2022 gaihuiying <eaglegai@163.com> - 11.9-2
+- Type:bugfix
+- CVE:NA
+- SUG:NA
+- DESC:add macros to control if need to eliminate bep differences
+
 * Mon Mar 21 2022 xihaochen <xihaochen@h-partners.com> - 11.9-1
 - Type:requirement
 - ID:NA
