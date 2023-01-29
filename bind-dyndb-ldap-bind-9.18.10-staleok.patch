@@ -1,0 +1,37 @@
+From 47902df23bf637e6c7ece67b928339e0fda58ae0 Mon Sep 17 00:00:00 2001
+From: Alexander Bokovoy <abokovoy@redhat.com>
+Date: Mon, 16 Jan 2023 11:03:24 +0200
+Subject: [PATCH] Handle dns_db_allrdatasets() backports too
+ 
+With https://gitlab.isc.org/isc-projects/bind9/-/merge_requests/7189 the
+changes were also backported to 9.16.36+ as well. Instead of checking
+version, check if an additional define is present.
+ 
+Signed-off-by: Alexander Bokovoy <abokovoy@redhat.com>
+---
+ src/util.h | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+ 
+diff --git a/src/util.h b/src/util.h
+index e4620ff..5da0f5c 100644
+--- a/src/util.h
++++ b/src/util.h
+@@ -13,6 +13,7 @@
+ #include <dns/types.h>
+ #include <dns/name.h>
+ #include <dns/result.h>
++#include <dns/db.h>
+ 
+ #include "log.h"
+ #include "dyndb-config.h"
+@@ -29,7 +30,7 @@ extern bool verbose_checks; /* from settings.c */
+ #define dns_name_copynf(src, dst) dns_name_copy((src), (dst))
+ #endif
+ 
+-#if LIBDNS_VERSION_MAJOR >= 1810
++#ifdef DNS_DB_STALEOK
+ #define DNS_DB_ALLRDATASETS_OPTIONS(options, tstamp) options, tstamp
+ #else
+ #define DNS_DB_ALLRDATASETS_OPTIONS(options, tstamp) tstamp
+-- 
+2.39.0

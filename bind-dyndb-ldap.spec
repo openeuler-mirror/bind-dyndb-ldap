@@ -4,21 +4,24 @@
 %global with_bind_pkcs11 0
 
 Name:           bind-dyndb-ldap
-Version:        11.9
-Release:        2
+Version:        11.10
+Release:        1
 Summary:        LDAP back-end plug-in for BIND
 License:        GPLv2+
 URL:            https://releases.pagure.org/bind-dyndb-ldap
 Source0:        https://releases.pagure.org/%{name}/%{name}-%{version}.tar.bz2
 Source1:        https://releases.pagure.org/%{name}/%{name}-%{version}.tar.bz2.asc
 
-Patch1:         backport-bind-dyndb-ldap-11.9-bind-9.16.17.patch
+Patch1:         bind-dyndb-ldap-bind-9.18.10-db-options.patch
+Patch2:         bind-dyndb-ldap-bind-9.18.10-logs.patch
+Patch3:         bind-dyndb-ldap-bind-9.18.10-staleok.patch
+Patch4:         bind-dyndb-ldap-11.10-bind-9.18.11.patch
 
 BuildRequires:  bind-devel >= %{bind_version}
 BuildRequires:  krb5-devel
 BuildRequires:  openldap-devel
 BuildRequires:  libuuid-devel
-BuildRequires:  automake, autoconf, libtool
+BuildRequires:  automake, autoconf, libtool, make
 BuildRequires:  openssl-devel
 
 %if %{with bind_pkcs11}
@@ -93,6 +96,12 @@ sed -i.bak -e "$SEDSCRIPT" /etc/named.conf
 
 
 %changelog
+* Sun Jan 29 2023 xinghe <xinghe2@h-partners.com> - 11.10-1
+- Type:requirement
+- CVE:NA
+- SUG:NA
+- DESC:update to 11.10
+
 * Fri Jun 10 2022 gaihuiying <eaglegai@163.com> - 11.9-2
 - Type:bugfix
 - CVE:NA

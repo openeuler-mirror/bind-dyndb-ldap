@@ -1,0 +1,103 @@
+From 5dd2fefa0bc7cd7689004cec64304c3a02be9eab Mon Sep 17 00:00:00 2001
+From: Alexander Bokovoy <abokovoy@redhat.com>
+Date: Thu, 12 Jan 2023 13:25:10 +0200
+Subject: [PATCH] Support bind 9.18.10 or later
+ 
+dns_db_allrdatasets() gained a new parameter. Adopt the code to allow
+injecting 0 options if building against 9.18.10.
+ 
+Fixes: https://pagure.io/bind-dyndb-ldap/issue/216
+ 
+Signed-off-by: Alexander Bokovoy <abokovoy@redhat.com>
+---
+ src/ldap_driver.c | 7 ++++---
+ src/ldap_helper.c | 4 ++--
+ src/metadb.c      | 3 ++-
+ src/util.h        | 6 ++++++
+ 4 files changed, 14 insertions(+), 6 deletions(-)
+ 
+diff --git a/src/ldap_driver.c b/src/ldap_driver.c
+index 7367493..e4aeeb2 100644
+--- a/src/ldap_driver.c
++++ b/src/ldap_driver.c
+@@ -465,13 +465,14 @@ findrdataset(dns_db_t *db, dns_dbnode_t *node, dns_dbversion_t *version,
+ 
+ static isc_result_t
+ allrdatasets(dns_db_t *db, dns_dbnode_t *node, dns_dbversion_t *version,
+-	     isc_stdtime_t now, dns_rdatasetiter_t **iteratorp)
++	     DNS_DB_ALLRDATASETS_OPTIONS(unsigned int options, isc_stdtime_t now),
++	     dns_rdatasetiter_t **iteratorp)
+ {
+ 	ldapdb_t *ldapdb = (ldapdb_t *) db;
+ 
+ 	REQUIRE(VALID_LDAPDB(ldapdb));
+ 
+-	return dns_db_allrdatasets(ldapdb->rbtdb, node, version, now, iteratorp);
++	return dns_db_allrdatasets(ldapdb->rbtdb, node, version, DNS_DB_ALLRDATASETS_OPTIONS(options, now), iteratorp);
+ }
+ 
+ /* TODO: Add 'tainted' flag to the LDAP instance if something went wrong. */
+@@ -514,7 +515,7 @@ node_isempty(dns_db_t *db, dns_dbnode_t *node, dns_dbversion_t *version,
+ 
+ 	CHECK(ldapdb_name_fromnode(node, dns_fixedname_initname(&fname)));
+ 
+-	result = dns_db_allrdatasets(db, node, version, now, &rds_iter);
++	result = dns_db_allrdatasets(db, node, version, DNS_DB_ALLRDATASETS_OPTIONS(0, now), &rds_iter);
+ 	if (result == ISC_R_NOTFOUND) {
+ 		*isempty = true;
+ 	} else if (result == ISC_R_SUCCESS) {
+diff --git a/src/ldap_helper.c b/src/ldap_helper.c
+index 7ea3df9..7ac3d91 100644
+--- a/src/ldap_helper.c
++++ b/src/ldap_helper.c
+@@ -2005,7 +2005,7 @@ zone_sync_apex(const ldap_instance_t * const inst,
+ 				 zone_settings, &rdatalist));
+ 
+ 	CHECK(dns_db_getoriginnode(rbtdb, &node));
+-	result = dns_db_allrdatasets(rbtdb, node, version, 0,
++	result = dns_db_allrdatasets(rbtdb, node, version, DNS_DB_ALLRDATASETS_OPTIONS(0, 0),
+ 				     &rbt_rds_iterator);
+ 	if (result == ISC_R_SUCCESS) {
+ 		CHECK(diff_ldap_rbtdb(inst->mctx, &name, &rdatalist,
+@@ -3929,7 +3929,7 @@ update_restart:
+ 	CHECK(dns_db_newversion(ldapdb, &version));
+ 
+ 	CHECK(dns_db_findnode(rbtdb, &entry->fqdn, true, &node));
+-	result = dns_db_allrdatasets(rbtdb, node, version, 0, &rbt_rds_iterator);
++	result = dns_db_allrdatasets(rbtdb, node, version, DNS_DB_ALLRDATASETS_OPTIONS(0, 0), &rbt_rds_iterator);
+ 	if (result != ISC_R_SUCCESS && result != ISC_R_NOTFOUND)
+ 		goto cleanup;
+ 
+diff --git a/src/metadb.c b/src/metadb.c
+index f469a30..276de24 100644
+--- a/src/metadb.c
++++ b/src/metadb.c
+@@ -217,7 +217,8 @@ metadb_node_delete(metadb_node_t **nodep) {
+ 	node = *nodep;
+ 
+ 	dns_rdataset_init(&rdataset);
+-	CHECK(dns_db_allrdatasets(node->rbtdb, node->dbnode, node->version, 0,
++	CHECK(dns_db_allrdatasets(node->rbtdb, node->dbnode, node->version,
++				  DNS_DB_ALLRDATASETS_OPTIONS(0, 0),
+ 				  &iter));
+ 
+ 	for (result = dns_rdatasetiter_first(iter);
+diff --git a/src/util.h b/src/util.h
+index 5088ff3..e4620ff 100644
+--- a/src/util.h
++++ b/src/util.h
+@@ -29,6 +29,12 @@ extern bool verbose_checks; /* from settings.c */
+ #define dns_name_copynf(src, dst) dns_name_copy((src), (dst))
+ #endif
+ 
++#if LIBDNS_VERSION_MAJOR >= 1810
++#define DNS_DB_ALLRDATASETS_OPTIONS(options, tstamp) options, tstamp
++#else
++#define DNS_DB_ALLRDATASETS_OPTIONS(options, tstamp) tstamp
++#endif
++
+ #define CLEANUP_WITH(result_code)				\
+ 	do {							\
+ 		result = (result_code);				\
+-- 
+2.39.0
