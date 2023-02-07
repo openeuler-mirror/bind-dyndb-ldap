@@ -1,0 +1,151 @@
+From 00131b7b72daa953ab2bf5e6a4fd5508052debb0 Mon Sep 17 00:00:00 2001
+From: Alexander Bokovoy <abokovoy@redhat.com>
+Date: Thu, 12 Jan 2023 14:33:07 +0200
+Subject: [PATCH] adopt to bind 9.18.9+ loggers
+ 
+Fixes: https://pagure.io/bind-dyndb-ldap/issues/216
+ 
+Signed-off-by: Alexander Bokovoy <abokovoy@redhat.com>
+---
+ src/ldap_helper.c | 12 ++++--------
+ src/log.h         |  9 +++++++++
+ src/settings.c    | 12 ++++--------
+ src/syncrepl.c    |  6 ++----
+ 4 files changed, 19 insertions(+), 20 deletions(-)
+ 
+diff --git a/src/ldap_helper.c b/src/ldap_helper.c
+index 7ac3d91..acabd31 100644
+--- a/src/ldap_helper.c
++++ b/src/ldap_helper.c
+@@ -1317,8 +1317,7 @@ configure_zone_acl(isc_mem_t *mctx, dns_zone_t *zone,
+ 			dns_zone_logc(zone, DNS_LOGCATEGORY_SECURITY, ISC_LOG_CRITICAL,
+ 				      "cannot configure restrictive %s policy: %s",
+ 				      type_txt, isc_result_totext(result2));
+-			FATAL_ERROR(__FILE__, __LINE__,
+-				    "insecure state detected");
++			fatal_error("insecure state detected");
+ 		}
+ 	}
+ 	acl_setter(zone, acl);
+@@ -1365,8 +1364,7 @@ configure_zone_ssutable(dns_zone_t *zone, const char *update_str)
+ 			dns_zone_logc(zone, DNS_LOGCATEGORY_SECURITY, ISC_LOG_CRITICAL,
+ 				      "cannot disable all updates: %s",
+ 				      isc_result_totext(result2));
+-			FATAL_ERROR(__FILE__, __LINE__,
+-				    "insecure state detected");
++			fatal_error("insecure state detected");
+ 		}
+ 	}
+ 
+@@ -2951,8 +2949,7 @@ force_reconnect:
+ 						   ldap_inst);
+ 		break;
+ 	case AUTH_INVALID:
+-		UNEXPECTED_ERROR(__FILE__, __LINE__,
+-				"invalid auth_method_enum value %u",
++		unexpected_error("invalid auth_method_enum value %u",
+ 				 auth_method_enum);
+ 		break;
+ 
+@@ -3782,8 +3779,7 @@ update_zone(isc_task_t *task, isc_event_t *event)
+ 		else if (entry->class & LDAP_ENTRYCLASS_FORWARD)
+ 			CHECK(ldap_parse_fwd_zoneentry(entry, inst));
+ 		else
+-			FATAL_ERROR(__FILE__, __LINE__,
+-				    "update_zone: unexpected entry class");
++			fatal_error("update_zone: unexpected entry class");
+ 	}
+ 
+ cleanup:
+diff --git a/src/log.h b/src/log.h
+index da71f8b..844ac46 100644
+--- a/src/log.h
++++ b/src/log.h
+@@ -17,8 +17,17 @@
+ #define GET_LOG_LEVEL(level)	(level)
+ #endif
+ 
++#if LIBDNS_VERSION_MAJOR >= 1809
++#define fatal_error(...) \
++	isc_error_fatal(__FILE__, __LINE__, __func__, __VA_ARGS__)
++#define unexpected_error(...) \
++	isc_error_unexpected(__FILE__, __LINE__, __func__, __VA_ARGS__)
++#else
+ #define fatal_error(...) \
+ 	isc_error_fatal(__FILE__, __LINE__, __VA_ARGS__)
++#define unexpected_error(...) \
++	isc_error_unexpected(__FILE__, __LINE__, __VA_ARGS__)
++#endif
+ 
+ #define log_bug(fmt, ...) \
+ 	log_error("bug in %s(): " fmt, __func__,##__VA_ARGS__)
+diff --git a/src/settings.c b/src/settings.c
+index def60d7..2a0bb19 100644
+--- a/src/settings.c
++++ b/src/settings.c
+@@ -178,8 +178,7 @@ setting_get(const char *const name, const setting_type_t type,
+ 		*(bool *)target = setting->value.value_boolean;
+ 		break;
+ 	default:
+-		UNEXPECTED_ERROR(__FILE__, __LINE__,
+-				 "invalid setting_type_t value %u", type);
++		unexpected_error("invalid setting_type_t value %u", type);
+ 		break;
+ 	}
+ 
+@@ -278,8 +277,7 @@ set_value(isc_mem_t *mctx, const settings_set_t *set, setting_t *setting,
+ 			CLEANUP_WITH(ISC_R_IGNORE);
+ 		break;
+ 	default:
+-		UNEXPECTED_ERROR(__FILE__, __LINE__,
+-				 "invalid setting_type_t value %u", setting->type);
++		unexpected_error("invalid setting_type_t value %u", setting->type);
+ 		break;
+ 	}
+ 
+@@ -304,8 +302,7 @@ set_value(isc_mem_t *mctx, const settings_set_t *set, setting_t *setting,
+ 		setting->value.value_boolean = numeric_value;
+ 		break;
+ 	default:
+-		UNEXPECTED_ERROR(__FILE__, __LINE__,
+-				 "invalid setting_type_t value %u", setting->type);
++		unexpected_error("invalid setting_type_t value %u", setting->type);
+ 		break;
+ 	}
+ 	setting->filled = 1;
+@@ -389,8 +386,7 @@ setting_unset(const char *const name, const settings_set_t *set)
+ 	case ST_BOOLEAN:
+ 		break;
+ 	default:
+-		UNEXPECTED_ERROR(__FILE__, __LINE__,
+-				 "invalid setting_type_t value %u", setting->type);
++		unexpected_error("invalid setting_type_t value %u", setting->type);
+ 		break;
+ 	}
+ 	setting->filled = 0;
+diff --git a/src/syncrepl.c b/src/syncrepl.c
+index 0bee09a..f94379c 100644
+--- a/src/syncrepl.c
++++ b/src/syncrepl.c
+@@ -148,8 +148,7 @@ finish(isc_task_t *task, isc_event_t *event) {
+ 		case sync_datainit:
+ 		case sync_finished:
+ 		default:
+-			FATAL_ERROR(__FILE__, __LINE__,
+-				    "sync_barrier_wait(): invalid state "
++			fatal_error("sync_barrier_wait(): invalid state "
+ 				    "%u", bev->sctx->state);
+ 	}
+ 	sync_state_change(bev->sctx, new_state, false);
+@@ -518,8 +517,7 @@ sync_barrier_wait(sync_ctx_t *sctx, ldap_instance_t *inst) {
+ 		case sync_databarrier:
+ 		case sync_finished:
+ 		default:
+-			FATAL_ERROR(__FILE__, __LINE__,
+-				    "sync_barrier_wait(): invalid state "
++			fatal_error("sync_barrier_wait(): invalid state "
+ 				    "%u", sctx->state);
+ 	}
+ 
+-- 
+2.39.0
