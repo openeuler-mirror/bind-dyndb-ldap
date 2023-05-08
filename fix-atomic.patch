@@ -1,0 +1,95 @@
+diff -u -r bind-dyndb-ldap-11.10/src/ldap_driver.c bind-dyndb-ldap-11.10/src/ldap_driver.c
+--- bind-dyndb-ldap-11.10/src/ldap_driver.c	2022-06-21 14:59:52.000000000 +0800
++++ bind-dyndb-ldap-11.10/src/ldap_driver.c	2023-05-08 11:35:51.000000000 +0800
+@@ -69,7 +69,7 @@
+ 
+ struct ldapdb {
+ 	dns_db_t			common;
+-	isc_refcount_t			refs;
++	_Atomic unsigned long refs;
+ 	ldap_instance_t			*ldap_inst;
+ 
+ 	/**
+@@ -134,10 +134,10 @@
+ 
+ 	REQUIRE(VALID_LDAPDB(ldapdb));
+ 
+-#if LIBDNS_VERSION_MAJOR < 1600
+-	isc_refcount_increment(&ldapdb->refs, NULL);
++	#if LIBDNS_VERSION_MAJOR < 1600
++    atomic_fetch_add_explicit(&ldapdb->refs, 1, memory_order_relaxed);
+ #else
+-	isc_refcount_increment(&ldapdb->refs);
++    atomic_fetch_add_explicit(&ldapdb->refs, 1, memory_order_relaxed);
+ #endif
+ 	*targetp = source;
+ }
+diff -u -r bind-dyndb-ldap-11.10/src/ldap_helper.c bind-dyndb-ldap-11.10/src/ldap_helper.c
+--- bind-dyndb-ldap-11.10/src/ldap_helper.c	2022-06-21 14:59:52.000000000 +0800
++++ bind-dyndb-ldap-11.10/src/ldap_helper.c	2023-05-08 11:36:52.000000000 +0800
+@@ -166,7 +166,7 @@
+ 	isc_thread_t		watcher;
+ 	bool		exiting;
+ 	/* Non-zero if this instance is 'tainted' by an unrecoverable problem. */
+-	isc_refcount_t		errors;
++	_Atomic unsigned long errors;
+ 
+ 	/* Settings. */
+ 	settings_set_t		*local_settings;
+diff -u -r bind-dyndb-ldap-11.10/src/mldap.c bind-dyndb-ldap-11.10/src/mldap.c
+--- bind-dyndb-ldap-11.10/src/mldap.c	2022-06-21 14:59:52.000000000 +0800
++++ bind-dyndb-ldap-11.10/src/mldap.c	2023-05-08 11:30:40.000000000 +0800
+@@ -65,7 +65,7 @@
+ struct mldapdb {
+ 	isc_mem_t	*mctx;
+ 	metadb_t	*mdb;
+-	isc_refcount_t	generation;
++	_Atomic unsigned long generation;
+ };
+ 
+ 
+@@ -80,7 +80,7 @@
+ 	ZERO_PTR(mldap);
+ 	isc_mem_attach(mctx, &mldap->mctx);
+ 
+-	isc_refcount_init(&mldap->generation, 0);
++	atomic_init(&mldap->generation, 0);
+ 	CHECK(metadb_new(mctx, &mldap->mdb));
+ 
+ 	*mldapp = mldap;
+diff -u -r bind-dyndb-ldap-11.10/src/syncrepl.c bind-dyndb-ldap-11.10/src/syncrepl.c
+--- bind-dyndb-ldap-11.10/src/syncrepl.c	2022-06-21 14:59:52.000000000 +0800
++++ bind-dyndb-ldap-11.10/src/syncrepl.c	2023-05-08 22:41:58.000000000 +0800
+@@ -87,7 +87,7 @@
+  * @see ldap_sync_search_entry()
+  */
+ struct sync_ctx {
+-	isc_refcount_t			task_cnt; /**< provides atomic access */
++	_Atomic unsigned long task_cnt; /**< provides atomic access */
+ 	isc_mem_t			*mctx;
+ 	/** limit number of unprocessed LDAP events in queue
+ 	 *  (memory consumption is one of problems) */
+@@ -211,9 +211,9 @@
+ 
+ 	bev = (sync_barrierev_t *)event;
+ #if LIBDNS_VERSION_MAJOR < 1600
+-	isc_refcount_decrement(&bev->sctx->task_cnt, &cnt);
++    cnt = atomic_fetch_sub_explicit(&bev->sctx->task_cnt, 1, memory_order_acq_rel);
+ #else
+-	cnt = isc_refcount_decrement(&bev->sctx->task_cnt);
++    cnt = atomic_fetch_sub_explicit(&bev->sctx->task_cnt, 1, memory_order_acq_rel);
+ #endif
+ 	if (cnt == REFCOUNT_FLOOR) {
+ 		sync_barrierev_t *fev = NULL;
+@@ -336,9 +336,9 @@
+ 		UNLINK(sctx->tasks, taskel, link);
+ 		isc_task_detach(&taskel->task);
+ #if LIBDNS_VERSION_MAJOR < 1600
+-		isc_refcount_decrement(&sctx->task_cnt, NULL);
++    (void)atomic_fetch_sub_explicit(&sctx->task_cnt, 1, memory_order_acq_rel);
+ #else
+-		(void)isc_refcount_decrement(&sctx->task_cnt);
++    (void)atomic_fetch_sub_explicit(&sctx->task_cnt, 1, memory_order_acq_rel);
+ #endif
+ 		SAFE_MEM_PUT_PTR(sctx->mctx, taskel);
+ 	}
