@@ -5,7 +5,7 @@
 
 Name:           bind-dyndb-ldap
 Version:        11.10
-Release:        1
+Release:        2
 Summary:        LDAP back-end plug-in for BIND
 License:        GPLv2+
 URL:            https://releases.pagure.org/bind-dyndb-ldap
@@ -16,6 +16,7 @@ Patch1:         bind-dyndb-ldap-bind-9.18.10-db-options.patch
 Patch2:         bind-dyndb-ldap-bind-9.18.10-logs.patch
 Patch3:         bind-dyndb-ldap-bind-9.18.10-staleok.patch
 Patch4:         bind-dyndb-ldap-11.10-bind-9.18.11.patch
+Patch5:         fix-atomic.patch
 
 BuildRequires:  bind-devel >= %{bind_version}
 BuildRequires:  krb5-devel
@@ -96,6 +97,9 @@ sed -i.bak -e "$SEDSCRIPT" /etc/named.conf
 
 
 %changelog
+* Mon May 08 2023 yoo <sunyuechi@iscas.ac.cn> - 11.10-2
+- fix clang build error: Atomic
+
 * Sun Jan 29 2023 xinghe <xinghe2@h-partners.com> - 11.10-1
 - Type:requirement
 - CVE:NA
