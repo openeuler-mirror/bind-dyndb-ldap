@@ -1,0 +1,56 @@
+From 5d9a012e07578d1a813b385224ba53f77f06b026 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Petr=20Men=C5=A1=C3=ADk?= <pemensik@redhat.com>
+Date: Wed, 22 Mar 2023 13:38:18 +0100
+Subject: [PATCH] Remove rpz_attach for BIND 9.16+
+
+rpz_attach is never supplied from BIND9 code both in 9.16 or 9.18.
+Remove our custom function and pass NULL as well. It would be never
+called anyway.
+
+Modified to directly remove the function without db_registered fix.
+---
+ src/ldap_driver.c | 20 ++++----------------
+ 1 file changed, 4 insertions(+), 16 deletions(-)
+
+diff --git a/src/ldap_driver.c b/src/ldap_driver.c
+index e4aeeb2..20e12fc 100644
+--- a/src/ldap_driver.c
++++ b/src/ldap_driver.c
+@@ -804,22 +804,6 @@ rpz_attach(dns_db_t *db, dns_rpz_zones_t *rpzs, uint8_t rpz_num)
+ 
+ 	dns_db_rpz_attach(ldapdb->rbtdb, rpzs, rpz_num);
+ }
+-#else
+-void
+-rpz_attach(dns_db_t *db, void *void_rpzs, uint8_t rpz_num)
+-{
+-	ldapdb_t *ldapdb = (ldapdb_t *) db;
+-	dns_rpz_zones_t *rpzs = (dns_rpz_zones_t *) void_rpzs;
+-	isc_result_t result;
+-
+-	REQUIRE(VALID_LDAPDB(ldapdb));
+-
+-	rpzs->zones[rpz_num]->db_registered = true;
+-	result = dns_db_updatenotify_register(ldapdb->rbtdb,
+-					      dns_rpz_dbupdate_callback,
+-					      rpzs->zones[rpz_num]);
+-	REQUIRE(result == ISC_R_SUCCESS);
+-}
+ #endif
+ 
+ /*
+@@ -966,7 +950,11 @@ static dns_dbmethods_t ldapdb_methods = {
+ 	resigned,
+ 	isdnssec,
+ 	getrrsetstats,
++#if LIBDNS_VERSION_MAJOR < 1600
+ 	rpz_attach,
++#else
++	NULL,
++#endif
+ 	NULL, /* rpz_ready */
+ 	findnodeext,
+ 	findext,
+-- 
+2.39.2
+

@@ -1,0 +1,38 @@
+From dbbcc2f07ea6955c6b0b5a719f8058c54b1d750c Mon Sep 17 00:00:00 2001
+From: Alexander Bokovoy <abokovoy@redhat.com>
+Date: Wed, 14 Feb 2024 14:29:00 +0200
+Subject: [PATCH] use BIND macros when defining DNS names
+ 
+Fixes: https://pagure.io/bind-dyndb-ldap/issue/228
+ 
+Signed-off-by: Alexander Bokovoy <abokovoy@redhat.com>
+---
+ src/mldap.c | 13 +------------
+ 1 file changed, 1 insertion(+), 12 deletions(-)
+ 
+diff --git a/src/mldap.c b/src/mldap.c
+index 92a330c..79efddb 100644
+--- a/src/mldap.c
++++ b/src/mldap.c
+@@ -50,18 +50,7 @@
+ static unsigned char uuid_rootname_ndata[]
+ 	= { 4, 'u', 'u', 'i', 'd', 4, 'l', 'd', 'a', 'p', 0 };
+ static unsigned char uuid_rootname_offsets[] = { 0, 5, 10 };
+-static dns_name_t uuid_rootname =
+-{
+-	DNS_NAME_MAGIC,
+-	uuid_rootname_ndata,
+-	sizeof(uuid_rootname_ndata),
+-	sizeof(uuid_rootname_offsets),
+-	DNS_NAMEATTR_READONLY | DNS_NAMEATTR_ABSOLUTE,
+-	uuid_rootname_offsets,
+-	NULL,
+-	{ (void *)-1, (void *)-1 },
+-	{ NULL, NULL }
+-};
++static dns_name_t uuid_rootname = DNS_NAME_INITABSOLUTE(uuid_rootname_ndata, uuid_rootname_offsets);
+ 
+ struct mldapdb {
+ 	isc_mem_t	*mctx;
+-- 
+2.43.0
