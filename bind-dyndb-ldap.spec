@@ -5,7 +5,7 @@
 
 Name:           bind-dyndb-ldap
 Version:        11.10
-Release:        1
+Release:        2
 Summary:        LDAP back-end plug-in for BIND
 License:        GPLv2+
 URL:            https://releases.pagure.org/bind-dyndb-ldap
@@ -16,6 +16,9 @@ Patch1:         bind-dyndb-ldap-bind-9.18.10-db-options.patch
 Patch2:         bind-dyndb-ldap-bind-9.18.10-logs.patch
 Patch3:         bind-dyndb-ldap-bind-9.18.10-staleok.patch
 Patch4:         bind-dyndb-ldap-11.10-bind-9.18.11.patch
+Patch5:         backport-bind-dyndb-ldap-11.10-bind-9.18.13.patch
+Patch6:         backport-bind-dyndb-ldap-11.10-bind-9.18.19.patch
+Patch7:         backport-bind-dyndb-ldap-11.10-dns_name_init.patch
 
 BuildRequires:  bind-devel >= %{bind_version}
 BuildRequires:  krb5-devel
@@ -23,8 +26,9 @@ BuildRequires:  openldap-devel
 BuildRequires:  libuuid-devel
 BuildRequires:  automake, autoconf, libtool, make
 BuildRequires:  openssl-devel
+BuildRequires:  autoconf-archive
 
-%if %{with bind_pkcs11}
+%if %{with_bind_pkcs11}
 BuildRequires:  bind-pkcs11-devel >= %{bind_version}
 Requires(pre):  bind-pkcs11 >= %{bind_version}
 Requires:       bind-pkcs11 >= %{bind_version}, bind-pkcs11-utils >= %{bind_version}
@@ -96,6 +100,12 @@ sed -i.bak -e "$SEDSCRIPT" /etc/named.conf
 
 
 %changelog
+* Tue Mar 05 2024 xinghe <xinghe2@h-partners.com> - 11.10-2
+- Type:bugfix
+- CVE:NA
+- SUG:NA
+- DESC:fix build error
+
 * Sun Jan 29 2023 xinghe <xinghe2@h-partners.com> - 11.10-1
 - Type:requirement
 - CVE:NA

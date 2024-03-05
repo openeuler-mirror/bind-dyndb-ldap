@@ -1,0 +1,405 @@
+From 131ddb918a5e80bfac2ce97d994f75d42fdf4546 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Petr=20Men=C5=A1=C3=ADk?= <pemensik@redhat.com>
+Date: Mon, 25 Sep 2023 12:33:42 +0200
+Subject: [PATCH] Detect and propagate atomic libraries like bind9
+
+BIND9 headers expect atomic definitions are configured before they are
+included. It needs adding atomic libraries detection in configure AND
+including config.h before any ISC headers are included.
+
+Move dyndb-config.h before isc headers anywhere where needed.
+---
+ configure.ac        | 72 +++++++++++++++++++++++++++++++++++++++++++++
+ src/empty_zones.c   |  3 +-
+ src/fs.c            |  2 ++
+ src/fwd_register.c  |  3 +-
+ src/krb5_helper.c   |  1 +
+ src/ldap_convert.c  |  3 +-
+ src/ldap_entry.c    |  4 ++-
+ src/lock.c          |  2 ++
+ src/log.c           |  2 ++
+ src/metadb.c        |  2 ++
+ src/mldap.c         |  5 ++--
+ src/rbt_helper.c    |  3 +-
+ src/semaphore.c     |  2 ++
+ src/settings.c      |  3 +-
+ src/str.c           |  2 ++
+ src/syncptr.c       |  3 +-
+ src/zone.c          |  2 ++
+ src/zone_register.c |  3 +-
+ 18 files changed, 107 insertions(+), 10 deletions(-)
+
+diff --git a/configure.ac b/configure.ac
+index 9f7f3640c..c30f105db 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -145,6 +145,78 @@ AC_RUN_IFELSE([AC_LANG_PROGRAM([
+ ], [AC_MSG_ERROR([Cross compiling is not supported.])]
+ )
+ 
++# Following atomic checks taken from bind9 configure
++# SPDX-License-Identifier: MPL-2.0
++#
++# This Source Code Form is subject to the terms of the Mozilla Public
++# License, v. 2.0.  If a copy of the MPL was not distributed with this
++# file, you can obtain one at https://mozilla.org/MPL/2.0/.
++#
++ISC_ATOMIC_LIBS=""
++AC_CHECK_HEADERS(
++  [stdatomic.h],
++  [AC_MSG_CHECKING([for memory model aware atomic operations])
++   AC_COMPILE_IFELSE(
++     [AC_LANG_PROGRAM(
++	[[#include <stdatomic.h>]],
++	[[atomic_int_fast32_t val = 0; atomic_fetch_add_explicit(&val, 1, memory_order_relaxed);]]
++      )],
++     [AC_MSG_RESULT([stdatomic.h])
++      AC_MSG_CHECKING([whether -latomic is needed for 64-bit stdatomic.h functions])
++      AC_LINK_IFELSE(
++	[AC_LANG_PROGRAM(
++	   [[#include <stdatomic.h>]],
++	   [[atomic_int_fast64_t val = 0; atomic_fetch_add_explicit(&val, 1, memory_order_relaxed);]]
++	 )],
++	[AC_MSG_RESULT([no])],
++	[ISC_ATOMIC_LIBS="-latomic"
++	 AX_SAVE_FLAGS([atomic])
++	 LIBS="$LIBS $ISC_ATOMIC_LIBS"
++	 AC_LINK_IFELSE(
++	   [AC_LANG_PROGRAM(
++	      [[#include <stdatomic.h>]],
++	      [[atomic_int_fast64_t val = 0; atomic_fetch_add_explicit(&val, 1, memory_order_relaxed);]]
++	    )],
++	   [AC_MSG_RESULT([yes])],
++	   [AC_MSG_FAILURE([libatomic needed, but linking with -latomic failed, please fix your toolchain.])])
++	 AX_RESTORE_FLAGS([atomic])
++	])
++     ],
++     [AC_MSG_FAILURE([stdatomic.h header found, but compilation failed, please fix your toolchain.])]
++   )],
++  [AC_MSG_CHECKING([for memory model aware atomic operations])
++   AC_COMPILE_IFELSE(
++     [AC_LANG_PROGRAM(
++	[[#include <inttypes.h>]],
++	[[int32_t val = 0; __atomic_fetch_add(&val, 1, __ATOMIC_RELAXED);]]
++      )],
++     [AC_MSG_RESULT([__atomic builtins])
++      AC_DEFINE([HAVE___ATOMIC], [1], [define if __atomic builtins are not available])
++      AC_MSG_CHECKING([whether -latomic is needed for 64-bit __atomic builtins])
++      AC_LINK_IFELSE(
++	[AC_LANG_PROGRAM(
++	   [[#include <inttypes.h>]],
++	   [[int64_t val = 0; __atomic_fetch_add(&val, 1, __ATOMIC_RELAXED);]]
++	 )],
++	[AC_MSG_RESULT([no])],
++	[ISC_ATOMIC_LIBS="-latomic"
++	 AX_SAVE_FLAGS([atomic])
++	 LIBS="$LIBS $ISC_ATOMIC_LIBS"
++	 AC_LINK_IFELSE(
++	   [AC_LANG_PROGRAM(
++	      [[#include <inttypes.h>]],
++	      [[int64_t val = 0; __atomic_fetch_add(&val, 1, __ATOMIC_RELAXED);]]
++	    )],
++	   [AC_MSG_RESULT([yes])],
++	   [AC_MSG_FAILURE([libatomic needed, but linking with -latomic failed, please fix your toolchain.])])
++	 AX_RESTORE_FLAGS([atomic])
++	])
++     ],
++     [AC_MSG_FAILURE([not found])
++     ])
++  ])
++LIBS="$LIBS $ISC_ATOMIC_LIBS"
++
+ dnl isc_errno_toresult() was not available in older header files
+ AC_MSG_CHECKING([isc_errno_toresult availability])
+ AC_TRY_RUN([
+diff --git a/src/empty_zones.c b/src/empty_zones.c
+index 4e14a804a..f818046d4 100644
+--- a/src/empty_zones.c
++++ b/src/empty_zones.c
+@@ -1,5 +1,7 @@
+ #include <stdio.h>
+ 
++#include "dyndb-config.h"
++
+ #include <isc/result.h>
+ #include <isc/types.h>
+ #include <isc/util.h>
+@@ -8,7 +10,6 @@
+ #include <dns/zone.h>
+ #include <dns/zt.h>
+ 
+-#include "dyndb-config.h"
+ #include "empty_zones.h"
+ #include "util.h"
+ #include "zone_register.h"
+diff --git a/src/fs.c b/src/fs.c
+index 09df5842a..4f3c9c069 100644
+--- a/src/fs.c
++++ b/src/fs.c
+@@ -8,6 +8,8 @@
+ 
+ #include <sys/stat.h>
+ 
++#include "dyndb-config.h"
++
+ #include <isc/dir.h>
+ #include <isc/file.h>
+ #include <isc/errno.h>
+diff --git a/src/fwd_register.c b/src/fwd_register.c
+index 5a3d4e2c2..85792d52e 100644
+--- a/src/fwd_register.c
++++ b/src/fwd_register.c
+@@ -2,11 +2,12 @@
+  * Copyright (C) 2013-2014  bind-dyndb-ldap authors; see COPYING for license
+  */
+ 
++#include "dyndb-config.h"
++
+ #include <isc/rwlock.h>
+ #include <isc/util.h>
+ #include <dns/name.h>
+ 
+-#include "dyndb-config.h"
+ #include "rbt_helper.h"
+ #include "fwd_register.h"
+ #include "util.h"
+diff --git a/src/krb5_helper.c b/src/krb5_helper.c
+index 5d7ee6a9a..92412304b 100644
+--- a/src/krb5_helper.c
++++ b/src/krb5_helper.c
+@@ -4,6 +4,7 @@
+ 
+ #define _POSIX_C_SOURCE 200112L /* setenv */
+ 
++#include "dyndb-config.h"
+ #include <isc/util.h>
+ #include <string.h>
+ #include <stdlib.h>
+diff --git a/src/ldap_convert.c b/src/ldap_convert.c
+index 87f635f79..0a946c421 100644
+--- a/src/ldap_convert.c
++++ b/src/ldap_convert.c
+@@ -2,6 +2,8 @@
+  * Copyright (C) 2009-2015  bind-dyndb-ldap authors; see COPYING for license
+  */
+ 
++#include "dyndb-config.h"
++
+ #include <isc/buffer.h>
+ #include <isc/hex.h>
+ #include <isc/mem.h>
+@@ -20,7 +22,6 @@
+ #include <strings.h>
+ #include <ctype.h>
+ 
+-#include "dyndb-config.h"
+ #include "str.h"
+ #include "ldap_convert.h"
+ #include "log.h"
+diff --git a/src/ldap_entry.c b/src/ldap_entry.c
+index cdf26d858..a29797b1c 100644
+--- a/src/ldap_entry.c
++++ b/src/ldap_entry.c
+@@ -2,12 +2,14 @@
+  * Copyright (C) 2011-2014  bind-dyndb-ldap authors; see COPYING for license
+  */
+ #include <uuid/uuid.h>
++#include <inttypes.h>
++
++#include "dyndb-config.h"
+ 
+ #include <dns/rdata.h>
+ #include <dns/ttl.h>
+ #include <dns/types.h>
+ 
+-#include <inttypes.h>
+ #include <isc/region.h>
+ #include <isc/types.h>
+ #include <isc/util.h>
+diff --git a/src/lock.c b/src/lock.c
+index df6e5ccba..abb5fe0d7 100644
+--- a/src/lock.c
++++ b/src/lock.c
+@@ -2,6 +2,8 @@
+  * Copyright (C) 2014  bind-dyndb-ldap authors; see COPYING for license
+  */
+ 
++#include "dyndb-config.h"
++
+ #include <isc/task.h>
+ #include <isc/util.h>
+ 
+diff --git a/src/log.c b/src/log.c
+index 1eba3cde2..78f9e68b5 100644
+--- a/src/log.c
++++ b/src/log.c
+@@ -4,6 +4,8 @@
+ 
+ #include <stdio.h>
+ 
++#include "dyndb-config.h"
++
+ #include <isc/formatcheck.h>
+ #include <isc/util.h>
+ 
+diff --git a/src/metadb.c b/src/metadb.c
+index 276de244f..f035269d2 100644
+--- a/src/metadb.c
++++ b/src/metadb.c
+@@ -4,6 +4,8 @@
+  * Meta-database for information which are not represented in DNS data.
+  */
+ 
++#include "dyndb-config.h"
++
+ #include <isc/mutex.h>
+ #include <isc/util.h>
+ 
+diff --git a/src/mldap.c b/src/mldap.c
+index 0bc2d332f..92a330ccb 100644
+--- a/src/mldap.c
++++ b/src/mldap.c
+@@ -8,8 +8,10 @@
+ #include <ldap.h>
+ #include <stddef.h>
+ #include <uuid/uuid.h>
+-
+ #include <inttypes.h>
++
++#include "dyndb-config.h"
++
+ #include <isc/net.h>
+ #include <isc/refcount.h>
+ #include <isc/result.h>
+@@ -27,7 +29,6 @@
+ #include "metadb.h"
+ #include "mldap.h"
+ #include "util.h"
+-#include "dyndb-config.h"
+ 
+ #if LIBDNS_VERSION_MAJOR < 1600
+ #define REFCOUNT_CAST(n) ((typeof(((isc_refcount_t *)0)->refs)) (n))
+diff --git a/src/rbt_helper.c b/src/rbt_helper.c
+index 6009553bf..d918801c6 100644
+--- a/src/rbt_helper.c
++++ b/src/rbt_helper.c
+@@ -2,12 +2,13 @@
+  * Copyright (C) 2013-2014  bind-dyndb-ldap authors; see COPYING for license
+  */
+ 
++#include "dyndb-config.h"
++
+ #include <isc/util.h>
+ #include <dns/rbt.h>
+ 
+ #include "util.h"
+ #include "rbt_helper.h"
+-#include "dyndb-config.h"
+ 
+ #define LDAPDB_RBTITER_MAGIC ISC_MAGIC('L', 'D', 'P', 'I')
+ 
+diff --git a/src/semaphore.c b/src/semaphore.c
+index b6d02ffac..8b549b8a4 100644
+--- a/src/semaphore.c
++++ b/src/semaphore.c
+@@ -8,6 +8,8 @@
+  * own signal. However, for our purposes, this shouldn't be needed.
+  */
+ 
++#include "dyndb-config.h"
++
+ #include <isc/condition.h>
+ #include <isc/result.h>
+ #include <isc/util.h>
+diff --git a/src/settings.c b/src/settings.c
+index 2a0bb1982..2c9d18238 100644
+--- a/src/settings.c
++++ b/src/settings.c
+@@ -2,6 +2,8 @@
+  * Copyright (C) 2009-2014  bind-dyndb-ldap authors; see COPYING for license
+  */
+ 
++#include "dyndb-config.h"
++
+ #include <isc/util.h>
+ #include <isc/mem.h>
+ #include <isc/task.h>
+@@ -24,7 +26,6 @@
+ #include "types.h"
+ #include "ldap_helper.h"
+ #include "zone_register.h"
+-#include "dyndb-config.h"
+ 
+ #if LIBDNS_VERSION_MAJOR < 1600
+ #define cfg_parse_buffer cfg_parse_buffer4
+diff --git a/src/str.c b/src/str.c
+index 6797eded0..a68f66c73 100644
+--- a/src/str.c
++++ b/src/str.c
+@@ -9,6 +9,8 @@
+  * Review all the REQUIRE() macros.
+  */
+ 
++#include "dyndb-config.h"
++
+ #include <isc/buffer.h>
+ #include <isc/mem.h>
+ #include <isc/mutex.h>
+diff --git a/src/syncptr.c b/src/syncptr.c
+index f7b8c02bc..7fab14a9e 100644
+--- a/src/syncptr.c
++++ b/src/syncptr.c
+@@ -6,6 +6,8 @@
+ #include <arpa/inet.h>
+ #include <sys/socket.h>
+ 
++#include "dyndb-config.h"
++
+ #include <isc/event.h>
+ #include <isc/netaddr.h>
+ #include <isc/task.h>
+@@ -18,7 +20,6 @@
+ #include <dns/zone.h>
+ #include <dns/zt.h>
+ 
+-#include "dyndb-config.h"
+ #include "util.h"
+ #include "ldap_convert.h"
+ #include "ldap_entry.h"
+diff --git a/src/zone.c b/src/zone.c
+index 0180ba8ea..899f612c3 100644
+--- a/src/zone.c
++++ b/src/zone.c
+@@ -3,6 +3,8 @@
+  */
+ 
+ #include <inttypes.h>
++#include "dyndb-config.h"
++
+ #include <isc/types.h>
+ #include <isc/util.h>
+ 
+diff --git a/src/zone_register.c b/src/zone_register.c
+index 504aa9be2..4db5e02c7 100644
+--- a/src/zone_register.c
++++ b/src/zone_register.c
+@@ -2,6 +2,8 @@
+  * Copyright (C) 2009-2014  bind-dyndb-ldap authors; see COPYING for license
+  */
+ 
++#include "dyndb-config.h"
++
+ #include <isc/mem.h>
+ #include <isc/rwlock.h>
+ #include <isc/util.h>
+@@ -12,7 +14,6 @@
+ #include <dns/result.h>
+ #include <dns/zone.h>
+ 
+-#include "dyndb-config.h"
+ #include "fs.h"
+ #include "ldap_driver.h"
+ #include "log.h"
+-- 
+2.41.0
+
